@@ -17,8 +17,9 @@ https://t.me/tg_voice_ai_bot 可以直接使用
 
    ```sh
    npm install
+   npm install -g wrangler
    wrangler login # 登录cf
-	wrangler kv namespace tgvoicechat # 创建kv
+   wrangler kv namespace create tgvoicechat # 创建kv
 	<!-- 修改 wrangler.json 中的 kv_namespaces 的 id 为上一步创建返回的 kv id  -->
    npm run deploy
    ```
