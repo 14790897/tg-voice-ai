@@ -148,7 +148,7 @@ async function generateAIResponse(prompt: string, chatHistory: Array<{ role: str
 	// 拼接聊天历史作为上下文
 	const result = await generateText({
 		model: workersai(CHAT_MODEL), // 使用指定的 AI 模型
-		prompt: `你是一个用户的好朋友，总能用幽默和温暖的方式陪伴他们。用户通过语音向你倾诉或聊天，内容可能存在表达不清楚的地方。请带着轻松和理解的态度，推断出用户的真实意图，给出既有趣又贴心的回复。以下是用户最近的聊天记录：${formattedHistory},以下是用户当前的输入：${prompt}。`, // 把识别出的文本作为输入 Prompt
+		prompt: `You are a good friend of the user, always accompanying them with humor and warmth. The user talks to you or chats with you through voice input, and the content may include unclear expressions. Please respond with a relaxed and understanding attitude, infer the user's true intent, and provide replies that are both fun and caring. Below is the user's recent chat history: ${formattedHistory}, and the user's current input is: ${prompt}.`, // 把识别出的文本作为输入 Prompt
 	});
 	console.log(`formattedHistory in generateAIResponse: ${formattedHistory}`);
 	const response = result.text; // 获取完整的 AI 回复
