@@ -10,10 +10,11 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250121.0",
+    "@types/node": "^22.13.8",
     "typescript": "^5.5.2",
     "wrangler": "^3.104.0"
   },
-	"dependencies": {
+  "dependencies": {
     "workers-ai-provider": "^0.0.11"
   }
 }

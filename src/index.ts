@@ -23,31 +23,49 @@ const CHAT_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast'; // Llama 模型�
 const TTS_MODEL = 'RVC-Boss/GPT-SoVITS'; // tts 模型路径
 
 async function generateVoice(text: string, env: Env): Promise<Blob> {
-	const apiUrl = 'https://api.siliconflow.cn/v1/audio/speech';
-	const response = await fetch(apiUrl, {
-		method: 'POST',
-		headers: {
-			Authorization: `Bearer ${env.siliconflow_token}`, // 替换为实际的 API Token
-			'Content-Type': 'application/json',
-		},
-		body: JSON.stringify({
-			model: TTS_MODEL,
-			input: text,
-			voice: `${TTS_MODEL}:anna`, // 声音模型
-			response_format: 'mp3', // 返回音频格式
-			sample_rate: 32000, // 采样率
-			stream: false, // 静态文件
-			speed: 1, // 播放速度
-			gain: 0, // 音量增益
-		}),
-	});
+	try {
+		const apiUrl = 'https://api.siliconflow.cn/v1/audio/speech';
+		const response = await fetch(apiUrl, {
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${env.siliconflow_token}`, // 替换为实际的 API Token
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({
+				model: TTS_MODEL,
+				input: text,
+				voice: `${TTS_MODEL}:anna`, // 声音模型
+				response_format: 'mp3', // 返回音频格式
+				sample_rate: 32000, // 采样率
+				stream: false, // 静态文件
+				speed: 1, // 播放速度
+				gain: 0, // 音量增益
+			}),
+		});
 
-	if (!response.ok) {
-		throw new Error(`Failed to generate voice: ${await response.text()}`);
+		if (!response.ok) {
+			throw new Error(`Failed to generate voice: ${await response.text()}`);
+		}
+		console.log('Voice generated:');
+		return await response.blob(); // 返回音频数据作为 Blob
+	} catch (error) {
+		console.error('Failed to generate voice:', error);
+		throw new Error('Failed to generate voice');
 	}
-	console.log('Voice generated:');
-	return await response.blob(); // 返回音频数据作为 Blob
 }
+
+async function generateImage(prompt: string, env: Env): Promise<string> {
+	try {
+		const response: any = await env.AI.run('@cf/black-forest-labs/flux-1-schnell', {
+			prompt: prompt,
+		});
+		return response.image;
+	} catch (error) {
+		console.error('Failed to generate image:', error);
+		throw new Error('Failed to generate image');
+	}
+}
+
 // 上传文件至 Telegram
 async function uploadVoiceToTelegram(blob: Blob, chatId: number, env: Env): Promise<Response> {
 	const tgApiUrl = `https://api.telegram.org/bot${env.tg_token}/sendVoice`;
@@ -66,6 +84,29 @@ async function uploadVoiceToTelegram(blob: Blob, chatId: number, env: Env): Prom
 		throw new Error('Failed to send voice to Telegram');
 	}
 	console.log('Voice sent to Telegram:', await response.text());
+	return response;
+}
+
+async function sendImageToTelegram(imageBase64: string, chatId: number, env: Env): Promise<Response> {
+	const tgApiUrl = `https://api.telegram.org/bot${env.tg_token}/sendPhoto`;
+	const binaryString = atob(imageBase64); // Base64 解码
+	const binaryData = Uint8Array.from(binaryString, (char) => char.charCodeAt(0)); // 转为 Uint8Array
+
+	// 创建 Blob，并指定格式为 JPEG
+	const blob = new Blob([binaryData], { type: 'image/jpeg' });
+	const formData = new FormData();
+	formData.append('chat_id', chatId.toString());
+	formData.append('photo', blob, 'image.jpg'); // 将图片 URI 附加到 FormData 中
+
+	const response = await fetch(tgApiUrl, {
+		method: 'POST',
+		body: formData,
+	});
+
+	if (!response.ok) {
+		throw new Error(`Failed to send image to Telegram: ${await response.text()}`);
+	}
+	console.log('Image sent to Telegram:', await response.text());
 	return response;
 }
 
@@ -138,7 +179,12 @@ async function getTelegramFileLink(fileId: string, env: Env): Promise<string> {
 }
 
 // 生成 AI 回复
-async function generateAIResponse(prompt: string, chatHistory: Array<{ role: string; text: string }>, env: Env): Promise<string> {
+async function generateAIResponse(
+	prompt: string,
+	chatHistory: Array<{ role: string; text: string }>,
+	env: Env,
+	isDraw: Boolean
+): Promise<string> {
 	const workersai = createWorkersAI({ binding: env.AI });
 	// 限制聊天历史为最近 10 条，并格式化为可读形式
 	const limitedHistory = chatHistory.slice(-10); // 只保留最近 10 条记录
@@ -146,13 +192,23 @@ async function generateAIResponse(prompt: string, chatHistory: Array<{ role: str
 		.map(({ role, text }) => `${role === 'user' ? 'user' : 'aibot(me)'}: ${text}`) // 格式化记录
 		.join('\n'); // 以换行符分隔
 	// 拼接聊天历史作为上下文
-	const result = await generateText({
-		model: workersai(CHAT_MODEL), // 使用指定的 AI 模型
-		prompt: `You are a good friend of the user, always accompanying them with humor and warmth. The user talks to you or chats with you through voice input, and the content may include unclear expressions. Please respond with a relaxed and understanding attitude, infer the user's true intent, and provide replies that are both fun and caring. Below is the user's recent chat history: ${formattedHistory}, and the user's current input is: ${prompt}.`, // 把识别出的文本作为输入 Prompt
-	});
+	let result;
+	if (isDraw) {
+		result = await generateText({
+			model: workersai(CHAT_MODEL), // 使用指定的 AI 模型
+			// AI绘画提示词生成，需要生成和当前场景对应的美女图片
+			prompt: `the user's current input is: ${prompt}. Generate a detailed and visually descriptive prompt for an AI art generator. The prompt should describe a beautiful and imaginative scene, including the main subject, background, atmosphere, and artistic style. For example: "A young woman standing in a mystical forest, surrounded by glowing fireflies. She is wearing a flowing dress that shimmers in the moonlight. The atmosphere is magical and peaceful. silk stocking" Don't forget to add silk stocking,`,
+		});
+	} else {
+		result = await generateText({
+			model: workersai(CHAT_MODEL), // 使用指定的 AI 模型
+			prompt: `You are a good friend of the user, always accompanying them with humor and warmth. The user talks to you or chats with you through voice input, and the content may include unclear expressions. Please respond with a relaxed and understanding attitude, infer the user's true intent, and provide replies that are both fun and caring. Below is the user's recent chat history: ${formattedHistory}, and the user's current input is: ${prompt}.`, // 把识别出的文本作为输入 Prompt
+		});
+	}
+	const aiResponseContent = result.text;
+	console.log(`result in generateAIResponse: ${aiResponseContent}`);
 	console.log(`formattedHistory in generateAIResponse: ${formattedHistory}`);
-	const response = result.text; // 获取完整的 AI 回复
-	return response;
+	return aiResponseContent;
 }
 
 // 处理 Telegram 更新请求
@@ -171,7 +227,7 @@ async function handleTelegramUpdate(update: any, env: Env): Promise<Response> {
 			const userText = update.message.text; // 读取文字内容
 
 			console.log('No voice message found');
-			const aiResponse = await generateAIResponse(userText, chatHistory, env);
+			const aiResponse = await generateAIResponse(userText, chatHistory, env, false);
 			const telegramResponse = await fetch(messageUrl, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
@@ -190,9 +246,11 @@ async function handleTelegramUpdate(update: any, env: Env): Promise<Response> {
 			);
 			// 生成语音回复
 			const voiceBlob = await generateVoice(aiResponse, env);
-
 			// 上传语音至 Telegram
 			await uploadVoiceToTelegram(voiceBlob, chatId, env);
+			const drawResponsePrompt = await generateAIResponse(userText, chatHistory, env, true);
+			const imageURI = await generateImage(drawResponsePrompt, env);
+			await sendImageToTelegram(imageURI, chatId, env);
 			return new Response('OK');
 		}
 
@@ -207,7 +265,7 @@ async function handleTelegramUpdate(update: any, env: Env): Promise<Response> {
 		const transcription = await transcribeAudio(blob, env);
 
 		// 基于转录结果生成 AI 回复
-		const aiResponse = await generateAIResponse(transcription, chatHistory, env);
+		const aiResponse = await generateAIResponse(transcription, chatHistory, env, false);
 
 		// 回复用户转录结果和 AI 回复内容
 
@@ -236,6 +294,9 @@ async function handleTelegramUpdate(update: any, env: Env): Promise<Response> {
 
 		// 上传语音至 Telegram
 		await uploadVoiceToTelegram(voiceBlob, chatId, env);
+		const drawResponsePrompt = await generateAIResponse(transcription, chatHistory, env, true);
+		const imageURI = await generateImage(drawResponsePrompt, env);
+		await sendImageToTelegram(imageURI, chatId, env);
 		return new Response('OK');
 	} catch (error: any) {
 		console.error('Error in handleTelegramUpdate:', error);
