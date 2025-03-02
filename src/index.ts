@@ -244,12 +244,17 @@ async function handleTelegramUpdate(update: any, env: Env): Promise<Response> {
 				],
 				env
 			);
-			// 生成语音回复
-			const voiceBlob = await generateVoice(aiResponse, env);
-			// 上传语音至 Telegram
-			await uploadVoiceToTelegram(voiceBlob, chatId, env);
-			const drawResponsePrompt = await generateAIResponse(userText, chatHistory, env, true);
-			const imageURI = await generateImage(drawResponsePrompt, env);
+			// 并行生成语音和绘画描述
+			const [voiceBlob, drawResponsePrompt] = await Promise.all([
+				generateVoice(aiResponse, env), // 生成语音
+				generateAIResponse(userText, chatHistory, env, true), // 生成绘画描述
+			]);
+
+			// 并行上传语音和生成图像
+			const [_, imageURI] = await Promise.all([
+				uploadVoiceToTelegram(voiceBlob, chatId, env), // 上传语音到 Telegram
+				generateImage(drawResponsePrompt, env), // 生成图像
+			]);
 			await sendImageToTelegram(imageURI, chatId, env);
 			return new Response('OK');
 		}
@@ -289,13 +294,17 @@ async function handleTelegramUpdate(update: any, env: Env): Promise<Response> {
 			],
 			env
 		);
-		// 生成语音回复
-		const voiceBlob = await generateVoice(aiResponse, env);
+		// 并行生成语音和绘画描述
+		const [voiceBlob, drawResponsePrompt] = await Promise.all([
+			generateVoice(aiResponse, env), // 生成语音
+			generateAIResponse(transcription, chatHistory, env, true), // 生成绘画描述
+		]);
 
-		// 上传语音至 Telegram
-		await uploadVoiceToTelegram(voiceBlob, chatId, env);
-		const drawResponsePrompt = await generateAIResponse(transcription, chatHistory, env, true);
-		const imageURI = await generateImage(drawResponsePrompt, env);
+		// 并行上传语音和生成图像
+		const [_, imageURI] = await Promise.all([
+			uploadVoiceToTelegram(voiceBlob, chatId, env), // 上传语音到 Telegram
+			generateImage(drawResponsePrompt, env), // 生成图像
+		]);
 		await sendImageToTelegram(imageURI, chatId, env);
 		return new Response('OK');
 	} catch (error: any) {
