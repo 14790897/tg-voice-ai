@@ -197,7 +197,7 @@ async function generateAIResponse(
 		result = await generateText({
 			model: workersai(CHAT_MODEL), // 使用指定的 AI 模型
 			// AI绘画提示词生成，需要生成和当前场景对应的美女图片
-			prompt: `the user's current input is: ${prompt}. Generate a detailed and visually descriptive prompt for an AI art generator. The prompt should describe a beautiful and imaginative scene, including the main subject, background, atmosphere, and artistic style. For example: "A young woman standing in a mystical forest, surrounded by glowing fireflies. She is wearing a flowing dress that shimmers in the moonlight. The atmosphere is magical and peaceful. silk stocking" Don't forget to add silk stocking,`,
+			prompt: `The user's current input is: ${prompt}. Generate a detailed and visually descriptive prompt for an AI art generator. The prompt should describe a beautiful and imaginative scene, including the main subject, background, atmosphere, and artistic style. For example: A young woman standing in a mystical forest, surrounded by glowing fireflies. She is wearing silk stockings and a flowing dress that shimmers in the moonlight. The atmosphere is magical and peaceful. Don't forget to add silk stocking. **Output only the final draw prompt with no explanations or additional text.**`,
 		});
 	} else {
 		result = await generateText({
