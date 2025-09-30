@@ -18,8 +18,8 @@ export interface TelegramFileResponse {
 	};
 }
 
-const WHISPER_MODEL = '@cf/openai/whisper'; // Whisper 模型路径
-const CHAT_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast'; // Llama 模型路径
+const WHISPER_MODEL = '@cf/openai/whisper-large-v3-turbo'; // Whisper 模型路径
+const CHAT_MODEL = '@cf/meta/llama-4-scout-17b-16e-instruct'; // Llama 模型路径
 const TTS_MODEL = 'RVC-Boss/GPT-SoVITS'; // tts 模型路径
 
 async function generateVoice(text: string, env: Env): Promise<Blob> {
