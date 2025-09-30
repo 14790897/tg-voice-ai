@@ -16,12 +16,12 @@ https://t.me/tg_voice_ai_bot 可以直接使用
 2. 部署 cf 程序
 
    ```sh
-   npm install
-   npm install -g wrangler
+   pnpm install
+   pnpm install -g wrangler
    wrangler login # 登录cf 或者 export CLOUDFLARE_API_TOKEN = <your token> export CLOUDFLARE_ACCOUNT_ID = <your account id>以实现登录
    wrangler kv namespace create tgvoicechat # 创建kv
    <!-- 修改 wrangler.json 中的 kv_namespaces 的 id 为上一步创建返回的 kv id  -->
-   npm run deploy
+   pnpm run deploy
    ```
 
 3. Configure the Cloudflare Worker secrets:
@@ -47,3 +47,12 @@ https://t.me/tg_voice_ai_bot 可以直接使用
 ## 演示
 
 ![alt text](image.png)
+
+
+## 日志查看
+
+pnpm dlx wrangler tail
+
+## 语音模型选择
+
+wrangler.json 中可以选择语音模型 tts_provider

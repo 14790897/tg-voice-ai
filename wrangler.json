@@ -19,7 +19,7 @@
 		}
 	],
 	"vars": {
-		"tts_speaker": "angus",
+		"tts_speaker": "asteria",
 		"tts_encoding": "mp3",
 		"tts_container": "mp3",
 		"tts_provider": "deepgram"

@@ -84,6 +84,45 @@ function isDeepgramContainer(value: string | undefined): value is DeepgramContai
 	return (DEEPGRAM_CONTAINERS as readonly string[]).includes(value);
 }
 
+function getDeepgramMime(payload: DeepgramRequestPayload): string {
+	if (payload.container === 'wav' || payload.encoding === 'linear16') {
+		return 'audio/wav';
+	}
+	if (payload.container === 'ogg' || payload.encoding === 'opus') {
+		return 'audio/ogg';
+	}
+	if (payload.encoding === 'aac') {
+		return 'audio/aac';
+	}
+	return 'audio/mpeg';
+}
+
+async function toDeepgramBlob(raw: unknown, payload: DeepgramRequestPayload): Promise<Blob> {
+	const mimeType = getDeepgramMime(payload);
+	if (raw instanceof Response) {
+		return await raw.blob();
+	}
+	if (raw && typeof (raw as any).blob === 'function') {
+		return await (raw as any).blob();
+	}
+	if (raw && typeof (raw as any).arrayBuffer === 'function') {
+		const buffer = await (raw as any).arrayBuffer();
+		return new Blob([buffer], { type: mimeType });
+	}
+	if (raw && typeof raw === 'object' && raw !== null && 'body' in (raw as any)) {
+		const body = (raw as any).body;
+		if (body instanceof ReadableStream) {
+			const buffer = await new Response(body).arrayBuffer();
+			return new Blob([buffer], { type: mimeType });
+		}
+	}
+	if (raw instanceof ReadableStream) {
+		const buffer = await new Response(raw).arrayBuffer();
+		return new Blob([buffer], { type: mimeType });
+	}
+	throw new Error('Unsupported Deepgram response type');
+}
+
 type TTSProvider = 'siliconflow' | 'workers' | 'deepgram';
 
 function resolveTTSProvider(env: Env): TTSProvider {
@@ -150,10 +189,10 @@ async function generateVoice(text: string, env: Env): Promise<Blob> {
 			if (typeof bitRateCandidate === 'number' && Number.isFinite(bitRateCandidate) && bitRateCandidate > 0) {
 				payload.bit_rate = bitRateCandidate;
 			}
-			const response = (await env.AI.run(DEEPGRAM_TTS_MODEL, payload, {
+			const raw = await env.AI.run(DEEPGRAM_TTS_MODEL, payload, {
 				returnRawResponse: true,
-			})) as Response;
-			const blob = await response.blob();
+			});
+			const blob = await toDeepgramBlob(raw, payload);
 			console.log('Voice generated with Deepgram Aura');
 			return blob;
 		} catch (error) {
