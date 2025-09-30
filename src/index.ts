@@ -31,7 +31,7 @@ const CHAT_MODEL = '@cf/meta/llama-4-scout-17b-16e-instruct'; // Llama 模型路
 const SILICONFLOW_TTS_MODEL = 'RVC-Boss/GPT-SoVITS'; // SiliconFlow TTS model
 const WORKERS_TTS_MODEL = '@cf/myshell-ai/melotts'; // Workers AI MeloTTS model
 const DEEPGRAM_TTS_MODEL = '@cf/deepgram/aura-1'; // Deepgram Aura TTS model
-const IMAGE_MODEL = '@cf/leonardo/lucid-origin'; // 图像生成模型路径 @cf/black-forest-labs/flux-1-schnell
+const IMAGE_MODEL = '@cf/black-forest-labs/flux-1-schnell'; // 图像生成模型路径 @cf/black-forest-labs/flux-1-schnell
 
 const DEEPGRAM_SPEAKERS = [
 	'angus',
