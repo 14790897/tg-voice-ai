@@ -1,6 +1,7 @@
 import { createWorkersAI } from 'workers-ai-provider';
 import { streamText } from 'ai';
 import { generateText } from 'ai';
+import type { LanguageModelV1 } from 'ai';
 
 export interface Env {
 	// aivoice: KVNamespace; // 可用于存储转录结果
@@ -8,8 +9,13 @@ export interface Env {
 	tg_token: string; // Telegram 机器人 Token
 	tg_chat_id: string; // Telegram 目标聊天 ID
 	siliconflow_token?: string; // SiliconFlow API Token
-	tts_provider?: string; // Preferred TTS provider (siliconflow | workers)
-	tts_lang?: string; // Preferred language code for Workers AI TTS
+	tts_provider?: string; // Preferred TTS provider (siliconflow | workers | deepgram)
+	tts_lang?: string; // Preferred language code for Workers AI TTS(myshell)
+	tts_speaker?: string; // Preferred speaker for Deepgram Aura
+	tts_encoding?: string; // Optional encoding for Deepgram Aura output
+	tts_container?: string; // Optional container for Deepgram Aura output
+	tts_sample_rate?: string; // Optional sample rate for Deepgram Aura output
+	tts_bit_rate?: string; // Optional bit rate for Deepgram Aura output
 	tgvoicechat: KVNamespace;
 }
 
@@ -24,9 +30,61 @@ const WHISPER_MODEL = '@cf/openai/whisper-large-v3-turbo'; // Whisper 模型路�
 const CHAT_MODEL = '@cf/meta/llama-4-scout-17b-16e-instruct'; // Llama 模型路径
 const SILICONFLOW_TTS_MODEL = 'RVC-Boss/GPT-SoVITS'; // SiliconFlow TTS model
 const WORKERS_TTS_MODEL = '@cf/myshell-ai/melotts'; // Workers AI MeloTTS model
+const DEEPGRAM_TTS_MODEL = '@cf/deepgram/aura-1'; // Deepgram Aura TTS model
 const IMAGE_MODEL = '@cf/leonardo/lucid-origin'; // 图像生成模型路径 @cf/black-forest-labs/flux-1-schnell
 
-type TTSProvider = 'siliconflow' | 'workers';
+const DEEPGRAM_SPEAKERS = [
+	'angus',
+	'asteria',
+	'arcas',
+	'orion',
+	'orpheus',
+	'athena',
+	'luna',
+	'zeus',
+	'perseus',
+	'helios',
+	'hera',
+	'stella',
+] as const;
+const DEEPGRAM_ENCODINGS = ['linear16', 'flac', 'mulaw', 'alaw', 'mp3', 'opus', 'aac'] as const;
+const DEEPGRAM_CONTAINERS = ['none', 'wav', 'ogg'] as const;
+
+type DeepgramSpeaker = (typeof DEEPGRAM_SPEAKERS)[number];
+type DeepgramEncoding = (typeof DEEPGRAM_ENCODINGS)[number];
+type DeepgramContainer = (typeof DEEPGRAM_CONTAINERS)[number];
+
+interface DeepgramRequestPayload {
+	text: string;
+	speaker: DeepgramSpeaker;
+	encoding?: DeepgramEncoding;
+	container?: DeepgramContainer;
+	sample_rate?: number;
+	bit_rate?: number;
+}
+
+function isDeepgramSpeaker(value: string | undefined): value is DeepgramSpeaker {
+	if (!value) {
+		return false;
+	}
+	return (DEEPGRAM_SPEAKERS as readonly string[]).includes(value);
+}
+
+function isDeepgramEncoding(value: string | undefined): value is DeepgramEncoding {
+	if (!value) {
+		return false;
+	}
+	return (DEEPGRAM_ENCODINGS as readonly string[]).includes(value);
+}
+
+function isDeepgramContainer(value: string | undefined): value is DeepgramContainer {
+	if (!value) {
+		return false;
+	}
+	return (DEEPGRAM_CONTAINERS as readonly string[]).includes(value);
+}
+
+type TTSProvider = 'siliconflow' | 'workers' | 'deepgram';
 
 function resolveTTSProvider(env: Env): TTSProvider {
 	const normalized = env.tts_provider?.toLowerCase();
@@ -35,6 +93,9 @@ function resolveTTSProvider(env: Env): TTSProvider {
 	}
 	if (normalized === 'siliconflow') {
 		return 'siliconflow';
+	}
+	if (normalized === 'deepgram') {
+		return 'deepgram';
 	}
 	return env.siliconflow_token ? 'siliconflow' : 'workers';
 }
@@ -59,6 +120,44 @@ async function generateVoice(text: string, env: Env): Promise<Blob> {
 			return blob;
 		} catch (error) {
 			console.error('Failed to generate voice with Workers AI MeloTTS:', error);
+			throw new Error('Failed to generate voice');
+		}
+	}
+
+	if (provider === 'deepgram') {
+		try {
+			const payload: DeepgramRequestPayload = {
+				text,
+				speaker: 'angus',
+			};
+			const speakerCandidate = env.tts_speaker?.trim();
+			if (isDeepgramSpeaker(speakerCandidate)) {
+				payload.speaker = speakerCandidate;
+			}
+			const encodingCandidate = env.tts_encoding?.trim();
+			if (isDeepgramEncoding(encodingCandidate)) {
+				payload.encoding = encodingCandidate;
+			}
+			const containerCandidate = env.tts_container?.trim();
+			if (isDeepgramContainer(containerCandidate)) {
+				payload.container = containerCandidate;
+			}
+			const sampleRateCandidate = env.tts_sample_rate ? Number(env.tts_sample_rate) : undefined;
+			if (typeof sampleRateCandidate === 'number' && Number.isFinite(sampleRateCandidate) && sampleRateCandidate > 0) {
+				payload.sample_rate = sampleRateCandidate;
+			}
+			const bitRateCandidate = env.tts_bit_rate ? Number(env.tts_bit_rate) : undefined;
+			if (typeof bitRateCandidate === 'number' && Number.isFinite(bitRateCandidate) && bitRateCandidate > 0) {
+				payload.bit_rate = bitRateCandidate;
+			}
+			const response = (await env.AI.run(DEEPGRAM_TTS_MODEL, payload, {
+				returnRawResponse: true,
+			})) as Response;
+			const blob = await response.blob();
+			console.log('Voice generated with Deepgram Aura');
+			return blob;
+		} catch (error) {
+			console.error('Failed to generate voice with Deepgram Aura:', error);
 			throw new Error('Failed to generate voice');
 		}
 	}
@@ -158,7 +257,7 @@ async function sendImageToTelegram(imageBase64: string, chatId: number, env: Env
 async function transcribeAudio(blob: Blob, env: Env): Promise<string> {
 	const audioArray = new Uint8Array(await blob.arrayBuffer()); // 转换 Blob 为 Uint8Array
 	const response = await env.AI.run(WHISPER_MODEL, {
-		audio: [...audioArray], // 将音频数据传递给 AI
+		audio: [...audioArray] as unknown as string, // 将音频数据传递给 AI
 	});
 	return response.text; // 返回转录文本
 }
@@ -230,7 +329,8 @@ async function generateAIResponse(
 	isDraw: Boolean
 ): Promise<string> {
 	const workersai = createWorkersAI({ binding: env.AI });
-	// 限制聊天历史为最近 10 条，并格式化为可读形式
+	const chatModel = workersai(CHAT_MODEL) as unknown as LanguageModelV1;
+	// 限制聊天历史为最近 10 条，并格式化为可读样式
 	const limitedHistory = chatHistory.slice(-10); // 只保留最近 10 条记录
 	const formattedHistory = limitedHistory
 		.map(({ role, text }) => `${role === 'user' ? 'user' : 'aibot(me)'}: ${text}`) // 格式化记录
@@ -239,14 +339,13 @@ async function generateAIResponse(
 	let result;
 	if (isDraw) {
 		result = await generateText({
-			model: workersai(CHAT_MODEL), // 使用指定的 AI 模型
-			// AI绘画提示词生成，需要生成和当前场景对应的美女图片
+			model: chatModel, // 使用指定的 AI 模型
 			prompt: `The user's current input is: ${prompt}. Generate a detailed and visually descriptive prompt for an AI art generator. The prompt should describe a beautiful and imaginative scene, including the main subject, background, atmosphere, and artistic style. For example: A young woman standing in a mystical forest, surrounded by glowing fireflies. She is wearing silk stockings and a flowing dress that shimmers in the moonlight. The atmosphere is magical and peaceful. Don't forget to add silk stocking. **Output only the final draw prompt with no explanations or additional text.**`,
 		});
 	} else {
 		result = await generateText({
-			model: workersai(CHAT_MODEL), // 使用指定的 AI 模型
-			prompt: `You are a good friend of the user, always accompanying them with humor and warmth. The user talks to you or chats with you through voice input, and the content may include unclear expressions. Please respond with a relaxed and understanding attitude, infer the user's true intent, and provide replies that are both fun and caring. Below is the user's recent chat history: ${formattedHistory}, and the user's current input is: ${prompt}.`, // 把识别出的文本作为输入 Prompt
+			model: chatModel, // 使用指定的 AI 模型
+			prompt: `You are a good friend of the user, always accompanying them with humor and warmth. The user talks to you or chats with you through voice input, and the content may include unclear expressions. Please respond with a relaxed and understanding attitude, infer the user's true intent, and provide replies that are both fun and caring. Below is the user's recent chat history: ${formattedHistory}, and the user's current input is: ${prompt}.`, // 将识别出的文本作为 Prompt
 		});
 	}
 	const aiResponseContent = result.text;

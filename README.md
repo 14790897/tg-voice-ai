@@ -27,8 +27,10 @@ https://t.me/tg_voice_ai_bot 可以直接使用
 3. Configure the Cloudflare Worker secrets:
    - `tg_token`: Telegram bot token from BotFather.
    - `siliconflow_token` (optional): SiliconFlow API token for the SiliconFlow provider.
-   - `tts_provider` (optional): Set to `workers` to use Cloudflare Workers AI MeloTTS, or `siliconflow` to force SiliconFlow.
-   - `tts_lang` (optional): Language code passed to MeloTTS (defaults to `en`).
+   - `tts_provider` (optional): Choose `workers`, `siliconflow`, or `deepgram` to pick the TTS backend (defaults to `siliconflow` when a token is set, otherwise `workers`).
+   - `tts_lang` (optional): Language code passed to MeloTTS when using the Workers provider (defaults to `en`).
+   - `tts_speaker` (optional): Deepgram Aura speaker id (defaults to `angus`).
+   - `tts_encoding`, `tts_container`, `tts_sample_rate`, `tts_bit_rate` (optional): Additional Deepgram Aura audio options.
 4. Visit the worker domain `/init` once to register the Telegram webhook (for example https://voiceai.14790897.xyz/init).
 
 5. 与机器人聊天，支持语音和文字
@@ -39,6 +41,7 @@ https://t.me/tg_voice_ai_bot 可以直接使用
    const CHAT_MODEL = '@cf/meta/llama-4-scout-17b-16e-instruct'; // Chat model path
    const SILICONFLOW_TTS_MODEL = 'RVC-Boss/GPT-SoVITS'; // SiliconFlow TTS model path
    const WORKERS_TTS_MODEL = '@cf/myshell-ai/melotts'; // Workers AI TTS model path
+   const DEEPGRAM_TTS_MODEL = '@cf/deepgram/aura-1'; // Deepgram Aura TTS model path
    ```
 
 ## 演示
