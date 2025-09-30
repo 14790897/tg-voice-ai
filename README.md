@@ -24,16 +24,21 @@ https://t.me/tg_voice_ai_bot 可以直接使用
    npm run deploy
    ```
 
-3. cf 配置环境变量（secret 类型） tg_token(botfather 给出的 token) 和 siliconflow_token（硅基的 api token 用于生成语音，因为 workers ai 没有 tts 功能）
-4. 访问 worker 域名/init 进行电报 webhook 注册 （例如 https://voiceai.14790897.xyz/init 为作者部署的域名）
+3. Configure the Cloudflare Worker secrets:
+   - `tg_token`: Telegram bot token from BotFather.
+   - `siliconflow_token` (optional): SiliconFlow API token for the SiliconFlow provider.
+   - `tts_provider` (optional): Set to `workers` to use Cloudflare Workers AI MeloTTS, or `siliconflow` to force SiliconFlow.
+   - `tts_lang` (optional): Language code passed to MeloTTS (defaults to `en`).
+4. Visit the worker domain `/init` once to register the Telegram webhook (for example https://voiceai.14790897.xyz/init).
 
 5. 与机器人聊天，支持语音和文字
 6. 可以在代码中修改使用模型
 
    ```ts
-   const WHISPER_MODEL = '@cf/openai/whisper'; // Whisper 模型路径
-   const CHAT_MODEL = '@cf/meta/llama-2-7b-chat-int8'; // Llama 模型路径
-   const TTS_MODEL = 'RVC-Boss/GPT-SoVITS'; // tts 模型路径
+   const WHISPER_MODEL = '@cf/openai/whisper-large-v3-turbo'; // Whisper model path
+   const CHAT_MODEL = '@cf/meta/llama-4-scout-17b-16e-instruct'; // Chat model path
+   const SILICONFLOW_TTS_MODEL = 'RVC-Boss/GPT-SoVITS'; // SiliconFlow TTS model path
+   const WORKERS_TTS_MODEL = '@cf/myshell-ai/melotts'; // Workers AI TTS model path
    ```
 
 ## 演示

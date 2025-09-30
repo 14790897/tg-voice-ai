@@ -7,7 +7,9 @@ export interface Env {
 	AI: Ai; // Cloudflare AI 模型服务
 	tg_token: string; // Telegram 机器人 Token
 	tg_chat_id: string; // Telegram 目标聊天 ID
-	siliconflow_token: string; // SiliconFlow API Token
+	siliconflow_token?: string; // SiliconFlow API Token
+	tts_provider?: string; // Preferred TTS provider (siliconflow | workers)
+	tts_lang?: string; // Preferred language code for Workers AI TTS
 	tgvoicechat: KVNamespace;
 }
 
@@ -20,9 +22,51 @@ export interface TelegramFileResponse {
 
 const WHISPER_MODEL = '@cf/openai/whisper-large-v3-turbo'; // Whisper 模型路径
 const CHAT_MODEL = '@cf/meta/llama-4-scout-17b-16e-instruct'; // Llama 模型路径
-const TTS_MODEL = 'RVC-Boss/GPT-SoVITS'; // tts 模型路径
+const SILICONFLOW_TTS_MODEL = 'RVC-Boss/GPT-SoVITS'; // SiliconFlow TTS model
+const WORKERS_TTS_MODEL = '@cf/myshell-ai/melotts'; // Workers AI MeloTTS model
+const IMAGE_MODEL = '@cf/leonardo/lucid-origin'; // 图像生成模型路径 @cf/black-forest-labs/flux-1-schnell
+
+type TTSProvider = 'siliconflow' | 'workers';
+
+function resolveTTSProvider(env: Env): TTSProvider {
+	const normalized = env.tts_provider?.toLowerCase();
+	if (normalized === 'workers') {
+		return 'workers';
+	}
+	if (normalized === 'siliconflow') {
+		return 'siliconflow';
+	}
+	return env.siliconflow_token ? 'siliconflow' : 'workers';
+}
 
 async function generateVoice(text: string, env: Env): Promise<Blob> {
+	const provider = resolveTTSProvider(env);
+
+	if (provider === 'workers') {
+		try {
+			const lang = env.tts_lang?.trim() || 'en';
+			const result: any = await env.AI.run(WORKERS_TTS_MODEL, {
+				prompt: text,
+				lang,
+			});
+			const audioBase64 = typeof result === 'string' ? result : result?.audio;
+			if (!audioBase64) {
+				throw new Error('No audio returned from Workers AI MeloTTS');
+			}
+			const audioBytes = Uint8Array.from(atob(audioBase64), (char) => char.charCodeAt(0));
+			const blob = new Blob([audioBytes.buffer], { type: 'audio/mpeg' });
+			console.log('Voice generated with Workers AI MeloTTS');
+			return blob;
+		} catch (error) {
+			console.error('Failed to generate voice with Workers AI MeloTTS:', error);
+			throw new Error('Failed to generate voice');
+		}
+	}
+
+	if (!env.siliconflow_token) {
+		throw new Error('SiliconFlow token is required for the selected TTS provider.');
+	}
+
 	try {
 		const apiUrl = 'https://api.siliconflow.cn/v1/audio/speech';
 		const response = await fetch(apiUrl, {
@@ -32,12 +76,12 @@ async function generateVoice(text: string, env: Env): Promise<Blob> {
 				'Content-Type': 'application/json',
 			},
 			body: JSON.stringify({
-				model: TTS_MODEL,
+				model: SILICONFLOW_TTS_MODEL,
 				input: text,
-				voice: `${TTS_MODEL}:anna`, // 声音模型
+				voice: `${SILICONFLOW_TTS_MODEL}:anna`, // 声音模型
 				response_format: 'mp3', // 返回音频格式
 				sample_rate: 32000, // 采样率
-				stream: false, // 静态文件
+				stream: false, // 非流式文件
 				speed: 1, // 播放速度
 				gain: 0, // 音量增益
 			}),
@@ -46,17 +90,17 @@ async function generateVoice(text: string, env: Env): Promise<Blob> {
 		if (!response.ok) {
 			throw new Error(`Failed to generate voice: ${await response.text()}`);
 		}
-		console.log('Voice generated:');
+		console.log('Voice generated with SiliconFlow');
 		return await response.blob(); // 返回音频数据作为 Blob
 	} catch (error) {
-		console.error('Failed to generate voice:', error);
+		console.error('Failed to generate voice with SiliconFlow:', error);
 		throw new Error('Failed to generate voice');
 	}
 }
 
 async function generateImage(prompt: string, env: Env): Promise<string> {
 	try {
-		const response: any = await env.AI.run('@cf/black-forest-labs/flux-1-schnell', {
+		const response: any = await env.AI.run(IMAGE_MODEL, {
 			prompt: prompt,
 		});
 		return response.image;
@@ -316,8 +360,12 @@ async function handleTelegramUpdate(update: any, env: Env): Promise<Response> {
 export default {
 	// 处理 Telegram Webhook 请求
 	async fetch(request: Request, env: Env): Promise<Response> {
-		if (!env.tg_token || !env.siliconflow_token || !env.AI) {
+		const ttsProvider = resolveTTSProvider(env);
+		if (!env.tg_token || !env.AI) {
 			throw new Error('Environment variables are not properly configured.');
+		}
+		if (ttsProvider === 'siliconflow' && !env.siliconflow_token) {
+			throw new Error('SiliconFlow token is required when using the SiliconFlow TTS provider.');
 		}
 		// Worker 运行时的 URL，需替换为实际 Worker 部署后的公共域名
 		const workerUrl = request.url.replace('/init', '');
