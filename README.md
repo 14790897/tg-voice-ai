@@ -48,6 +48,7 @@ https://t.me/tg_voice_ai_bot 可以直接使用
 
 ![alt text](image.png)
 
+<img width="1056" height="1837" alt="image" src="https://github.com/user-attachments/assets/7e5ffe38-e33b-4426-9eff-d5d369b5b2a2" />
 
 ## 日志查看
 
